@@ -5,25 +5,25 @@ import JSONUtils
 
 @dataclass
 class Ingredient:
-    ingredient_id: int
-    ingredient_amount: int
+    id: int
+    amt: int
 
     def __post_init__(self):
-        self.ingredient_id = int(self.ingredient_id)
-        self.ingredient_amount = int(self.ingredient_amount)
+        self.id = int(self.id)
+        self.amt = int(self.amt)
 
 @dataclass
 class Recipe:
     recipe_id: int
     result_id: int
-    result_amount: int
+    result_amt: int
     level: int
     ingredients: List[Ingredient]
 
     def __post_init__(self):
         self.recipe_id = int(self.recipe_id)
         self.result_id = int(self.result_id)
-        self.result_amount = int(self.result_amount)
+        self.result_amt = int(self.result_amt)
         self.level = int(self.level)
 
 @dataclass

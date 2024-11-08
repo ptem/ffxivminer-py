@@ -1,12 +1,16 @@
 import os
 
 import pandas
+from numpy.ma.core import outer
+
 from ItemCategories import *
 from RecipeLookup import *
 from Recipes import *
 from Regions import *
 
 if __name__ == '__main__':
+
+    # It's faster to just go straight to the json, but I want these tables at some point.
 
     ###########################################
     # Create Server Information Table
@@ -52,11 +56,22 @@ if __name__ == '__main__':
     tbl_items_mid.columns   = ['ItemSearchCategory_ID', 'ItemSearchCategory_Name']
 
     tbl_items_categories    = tbl_items.merge(tbl_items_mid, on='ItemSearchCategory_ID')
+    # print(tbl_items_categories.columns)
 
     tbl_craftable_items     = tbl_items_categories.merge(tbl_recipe_lookup, on='#', how='inner')
     tbl_craftable_items     = tbl_craftable_items.sort_values(by=['ItemSearchCategory_ID', '#'])
+    # print(tbl_craftable_items.columns)
 
     print(f'Created Craftable Items Table')
+
+    tbl_uncraftable = (tbl_items_categories[['#', 'Name', 'ItemSearchCategory_ID', 'ItemSearchCategory_Name']]
+                       .merge(tbl_craftable_items[['#', 'Name', 'ItemSearchCategory_ID', 'ItemSearchCategory_Name']]
+                              , indicator=True, how='outer'))
+    tbl_uncraftable = tbl_uncraftable[tbl_uncraftable['_merge'] != 'both'][['#', 'Name', 'ItemSearchCategory_ID', 'ItemSearchCategory_Name']]
+    tbl_uncraftable = tbl_uncraftable.sort_values(by=['ItemSearchCategory_ID', '#'])
+
+    print(f'Created Uncraftable Items Table')
+
 
     ###########################################
     # Create Gatherables Table
@@ -115,6 +130,26 @@ if __name__ == '__main__':
 
     print(f'Exported Craftable Items')
 
+    ###########################################
+    # Write Uncraftable Items to JSON
+    ###########################################
+    uncraftable_categories = list()
+    for search_category_id in tbl_uncraftable['ItemSearchCategory_ID'].drop_duplicates().tolist():
+        tbl_temp_category   = tbl_uncraftable[tbl_uncraftable['ItemSearchCategory_ID'] == search_category_id]
+        temp_category_name  = tbl_temp_category['ItemSearchCategory_Name'].tolist()[0]
+        temp_category_items = tbl_temp_category['#'].tolist()
+
+        category_items = list()
+        for temp_category_item_id in temp_category_items:
+            temp_category_item_name = tbl_uncraftable[tbl_uncraftable['#'] == temp_category_item_id]['Name'].tolist()[0]
+            category_items.append(Item(temp_category_item_id, temp_category_item_name))
+
+        uncraftable_categories.append(ItemCategory(search_category_id, temp_category_name, category_items))
+
+    with open('TestOutput/uncraftable_items.json', 'w') as file:
+        file.write(ItemCategories(uncraftable_categories).to_json())
+
+    print(f'Exported Uncraftable Items')
 
     ###########################################
     # Write Recipe Lookup to JSON
@@ -137,7 +172,8 @@ if __name__ == '__main__':
         file.write(RecipeLookup(recipe_lookups_list).to_json())
 
     print(f'Exported Recipe Lookup')
-    
+
+
     ###########################################
     # Write Server Information to JSON
     ###########################################
@@ -169,8 +205,26 @@ if __name__ == '__main__':
 
     print(f'Exported Regions')
 
+
     ###########################################
     # Write Recipes to JSON
     ###########################################
-    # TODO: Write Recipes
 
+    recipes_list = list()
+    for _, row in tbl_recipes.iterrows():
+        temp_recipe_table = tbl_recipes[tbl_recipes['#'] == row['#']]
+
+        ingredients_list = list()
+        for ingredient_idx in range(8):
+            ing = str.join('', ['{Ingredient}[' , str(ingredient_idx) , ']'])
+            temp_amt    = temp_recipe_table['Amount' + ing].values[0]
+            temp_item   = temp_recipe_table['Item' + ing].values[0]
+            if temp_amt > 0 and temp_item > 0:
+                ingredients_list.append(Ingredient(temp_item, temp_amt))
+
+        recipes_list.append(Recipe(row['#'], row['Item{Result}'], row['Amount{Result}'], row['Level'], ingredients_list))
+
+    with open('TestOutput/recipes.json', 'w') as file:
+        file.write(Recipes(recipes_list).to_json())
+
+    print("Exported Recipes")
