@@ -5,14 +5,14 @@ import JSONUtils
 
 @dataclass
 class RecipesIDList:
-    CRP: int
-    BSM: int
-    ARM: int
-    GSM: int
-    LTW: int
-    WVR: int
-    ALC: int
-    CUL: int
+    CRP: int = 0
+    BSM: int = 0
+    ARM: int = 0
+    GSM: int = 0
+    LTW: int = 0
+    WVR: int = 0
+    ALC: int = 0
+    CUL: int = 0
 
     def __post_init__(self):
         self.CRP = int(self.CRP)

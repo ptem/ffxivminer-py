@@ -1,5 +1,7 @@
+import os
+
 import pandas
-from Items import *
+from ItemCategories import *
 from RecipeLookup import *
 from Recipes import *
 from Regions import *
@@ -9,21 +11,20 @@ if __name__ == '__main__':
     ###########################################
     # Create Server Information Table
     ###########################################
+    tbl_world               = pandas.read_csv('Data/World.csv', skiprows=[0, 2], index_col=False)
+    tbl_world               = tbl_world[['Name', 'DataCenter', 'IsPublic']]
+    tbl_world               = tbl_world[tbl_world['IsPublic'] == True][['Name', 'DataCenter']]
+    tbl_world.columns       = ['World_Name', 'DataCenter_ID']
 
-    world = pandas.read_csv('Data/World.csv', skiprows=[0, 2], index_col=False)
-    world = world[['Name', 'DataCenter', 'IsPublic']]
-    world = world[world['IsPublic'] == True][['Name', 'DataCenter']]
-    world.columns = ['World_Name', 'DataCenter_ID']
+    tbl_datacenters         = pandas.read_csv('Data/WorldDCGroupType.csv', skiprows=[0, 2], index_col=False)
+    tbl_datacenters         = tbl_datacenters[['#', 'Name', 'Region']]
+    tbl_datacenters.columns = ['DataCenter_ID', 'DataCenter_Name', 'Region_ID']
 
-    datacenters = pandas.read_csv('Data/WorldDCGroupType.csv', skiprows=[0, 2], index_col=False)
-    datacenters = datacenters[['#', 'Name', 'Region']]
-    datacenters.columns = ['DataCenter_ID', 'DataCenter_Name', 'Region_ID']
+    tbl_world_datacenters   = pandas.merge(tbl_world, tbl_datacenters, on='DataCenter_ID')
 
-    world_dcs = pandas.merge(world, datacenters, on='DataCenter_ID')
-
-    world_dcs_region = world_dcs.merge(regions, on='Region_ID')
-    world_dcs_region = world_dcs_region[['Region_ID', 'Region_Name', 'DataCenter_ID', 'DataCenter_Name', 'World_Name']]
-    server_information = world_dcs_region.sort_values(by=['Region_ID', 'DataCenter_ID', 'World_Name']).reset_index(drop=True)
+    tbl_world_dcs_region    = tbl_world_datacenters.merge(regions, on='Region_ID')
+    tbl_world_dcs_region    = tbl_world_dcs_region[['Region_ID', 'Region_Name', 'DataCenter_ID', 'DataCenter_Name', 'World_Name']]
+    tbl_server_information  = tbl_world_dcs_region.sort_values(by=['Region_ID', 'DataCenter_ID', 'World_Name']).reset_index(drop=True)
 
     print(f'Created Server Information Table')
 
@@ -32,8 +33,8 @@ if __name__ == '__main__':
     # Create Recipe Lookup Table
     ###########################################
 
-    recipe_lookup = pandas.read_csv('Data/RecipeLookup.csv', skiprows=[0, 2], index_col=False)
-    recipe_lookup = recipe_lookup[['#', 'CRP', 'BSM', 'ARM', 'GSM', 'LTW', 'WVR', 'ALC', 'CUL']]
+    tbl_recipe_lookup       = pandas.read_csv('Data/RecipeLookup.csv', skiprows=[0, 2], index_col=False)
+    tbl_recipe_lookup       = tbl_recipe_lookup[['#', 'CRP', 'BSM', 'ARM', 'GSM', 'LTW', 'WVR', 'ALC', 'CUL']]
 
     print(f'Created Recipe Lookup Table')
 
@@ -42,22 +43,20 @@ if __name__ == '__main__':
     # Create Craftable Items Table, Recipe Lookup Table
     ###########################################
 
-    items_table = pandas.read_csv('Data/Item.csv', skiprows=[0, 2], index_col=False)
-    items_table = items_table[['#', 'Name', 'ItemSearchCategory']].dropna().reset_index(drop=True)
-    items_table.columns = ['#', 'Name', 'ItemSearchCategory_ID']
+    tbl_items               = pandas.read_csv('Data/Item.csv', skiprows=[0, 2], index_col=False)
+    tbl_items               = tbl_items[['#', 'Name', 'ItemSearchCategory']].dropna().reset_index(drop=True)
+    tbl_items.columns       = ['#', 'Name', 'ItemSearchCategory_ID']
 
-    item_category = pandas.read_csv('Data/ItemSearchCategory.csv', skiprows=[0, 2], index_col=False)
-    item_category = item_category[['#', 'Name']].dropna().reset_index(drop=True)
-    item_category.columns = ['ItemSearchCategory_ID', 'ItemSearchCategory_Name']
+    tbl_items_mid           = pandas.read_csv('Data/ItemSearchCategory.csv', skiprows=[0, 2], index_col=False)
+    tbl_items_mid           = tbl_items_mid[['#', 'Name']].dropna().reset_index(drop=True)
+    tbl_items_mid.columns   = ['ItemSearchCategory_ID', 'ItemSearchCategory_Name']
 
-    items_table = items_table.merge(item_category, on='ItemSearchCategory_ID')
-    items_table.to_csv('items_table.csv', index=False)
+    tbl_items_categories    = tbl_items.merge(tbl_items_mid, on='ItemSearchCategory_ID')
 
-    craftable = items_table.merge(recipe_lookup, on='#', how='inner')
-    craftable = craftable[['#','Name','ItemSearchCategory_ID']].sort_values(by='#')
+    tbl_craftable_items     = tbl_items_categories.merge(tbl_recipe_lookup, on='#', how='inner')
+    tbl_craftable_items     = tbl_craftable_items.sort_values(by=['ItemSearchCategory_ID', '#'])
 
     print(f'Created Craftable Items Table')
-
 
     ###########################################
     # Create Gatherables Table
@@ -69,26 +68,22 @@ if __name__ == '__main__':
     # Create Recipes Table
     ###########################################
 
-    recipe_level_table = pandas.read_csv('Data/RecipeLevelTable.csv', skiprows=[0, 2], index_col=False)
-    recipe_level_table = recipe_level_table[['#', 'ClassJobLevel']]
-    recipe_level_table.columns = ['RecipeLevelTable', 'Level']
+    tbl_recipe_level        = pandas.read_csv('Data/RecipeLevelTable.csv', skiprows=[0, 2], index_col=False)
+    tbl_recipe_level        = tbl_recipe_level[['#', 'ClassJobLevel']]
+    tbl_recipe_level.columns = ['RecipeLevelTable', 'Level']
 
-    recipes = pandas.read_csv('Data/Recipe.csv', skiprows=[0, 2], index_col=False)
-    recipes = recipes.merge(recipe_level_table, on='RecipeLevelTable')
-
-    recipes = recipes[['#', 'Level',
-                       'Item{Result}', 'Amount{Result}',
-                       'Item{Ingredient}[0]', 'Amount{Ingredient}[0]',
-                       'Item{Ingredient}[1]', 'Amount{Ingredient}[1]',
-                       'Item{Ingredient}[2]', 'Amount{Ingredient}[2]',
-                       'Item{Ingredient}[3]', 'Amount{Ingredient}[3]',
-                       'Item{Ingredient}[4]', 'Amount{Ingredient}[4]',
-                       'Item{Ingredient}[5]', 'Amount{Ingredient}[5]',
-                       'Item{Ingredient}[6]', 'Amount{Ingredient}[6]',
-                       'Item{Ingredient}[7]', 'Amount{Ingredient}[7]',
-                       ]]
-
-    recipes = recipes[recipes['Item{Result}'] > 0]
+    tbl_recipes             = pandas.read_csv('Data/Recipe.csv', skiprows=[0, 2], index_col=False)
+    tbl_recipes             = tbl_recipes.merge(tbl_recipe_level, on='RecipeLevelTable')
+    tbl_recipes             = tbl_recipes[tbl_recipes['Item{Result}'] > 0][['#', 'Level',
+                                    'Item{Result}', 'Amount{Result}',
+                                    'Item{Ingredient}[0]', 'Amount{Ingredient}[0]',
+                                    'Item{Ingredient}[1]', 'Amount{Ingredient}[1]',
+                                    'Item{Ingredient}[2]', 'Amount{Ingredient}[2]',
+                                    'Item{Ingredient}[3]', 'Amount{Ingredient}[3]',
+                                    'Item{Ingredient}[4]', 'Amount{Ingredient}[4]',
+                                    'Item{Ingredient}[5]', 'Amount{Ingredient}[5]',
+                                    'Item{Ingredient}[6]', 'Amount{Ingredient}[6]',
+                                    'Item{Ingredient}[7]', 'Amount{Ingredient}[7]']]
 
     print(f'Created Recipes Table')
 
@@ -97,13 +92,26 @@ if __name__ == '__main__':
     # Write Craftable Items to JSON
     ###########################################
 
-    craftable_items_list = list()
-    for _, row in craftable.iterrows():
-        item = Item(item_id=row['#'], item_name=row['Name'], item_category=row['ItemSearchCategory_ID'])
-        craftable_items_list.append(item)
+    item_categories = list()
+    for search_category_id in tbl_craftable_items['ItemSearchCategory_ID'].drop_duplicates().tolist():
+        tbl_temp_category   = tbl_craftable_items[tbl_craftable_items['ItemSearchCategory_ID'] == search_category_id]
+        temp_category_name  = tbl_temp_category['ItemSearchCategory_Name'].tolist()[0]
+        temp_category_items = tbl_temp_category['#'].tolist()
 
-    with open('craftable_items.json', 'w') as file:
-        file.write(Items(craftable_items_list).to_json())
+        category_items = list()
+        for temp_category_item_id in temp_category_items:
+            temp_category_item_name = tbl_craftable_items[tbl_craftable_items['#'] == temp_category_item_id]['Name'].tolist()[0]
+            category_items.append(Item(temp_category_item_id, temp_category_item_name))
+
+        item_categories.append(ItemCategory(search_category_id, temp_category_name, category_items))
+
+
+    if not os.path.exists('TestOutput'):
+        os.mkdir('TestOutput')
+
+    
+    with open('TestOutput/craftable_items.json', 'w') as file:
+        file.write(ItemCategories(item_categories).to_json())
 
     print(f'Exported Craftable Items')
 
@@ -113,7 +121,7 @@ if __name__ == '__main__':
     ###########################################
 
     recipe_lookups_list = list()
-    for _, row in recipe_lookup.iterrows():
+    for _, row in tbl_recipe_lookup.iterrows():
         recipes_list = RecipesIDList(CRP=row['CRP'],
                                      BSM=row['BSM'],
                                      ARM=row['ARM'],
@@ -125,7 +133,7 @@ if __name__ == '__main__':
         recipe_lookup_entry = RecipeLookupEntry(item_id=row['#'], recipes=recipes_list)
         recipe_lookups_list.append(recipe_lookup_entry)
 
-    with open('recipe_lookup.json', 'w') as file:
+    with open('TestOutput/recipe_lookup.json', 'w') as file:
         file.write(RecipeLookup(recipe_lookups_list).to_json())
 
     print(f'Exported Recipe Lookup')
@@ -136,7 +144,7 @@ if __name__ == '__main__':
 
     regions_list = list()
     for _, row in regions.iterrows():
-        temp_region_table = server_information[server_information['Region_ID'] == row['Region_ID']][['DataCenter_ID', 'DataCenter_Name', 'World_Name']]
+        temp_region_table = tbl_server_information[tbl_server_information['Region_ID'] == row['Region_ID']][['DataCenter_ID', 'DataCenter_Name', 'World_Name']]
         temp_datacenters = temp_region_table['DataCenter_ID'].drop_duplicates().tolist()
 
         datacenters_list = list()
@@ -156,7 +164,7 @@ if __name__ == '__main__':
 
         regions_list.append(region_obj)
 
-    with open('regions.json', 'w') as file:
+    with open('TestOutput/regions.json', 'w') as file:
         file.write(Regions(regions_list).to_json())
 
     print(f'Exported Regions')
