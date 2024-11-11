@@ -1,7 +1,8 @@
 from dataclasses import dataclass, asdict
 from typing import List
 
-import JSONUtils
+from ..utils import jsonutils
+
 
 @dataclass
 class RecipesIDList:
@@ -24,6 +25,7 @@ class RecipesIDList:
         self.ALC = int(self.ALC)
         self.CUL = int(self.CUL)
 
+
 @dataclass
 class RecipeLookupEntry:
     item_id: int
@@ -32,9 +34,10 @@ class RecipeLookupEntry:
     def __post_init__(self):
         self.item_id = int(self.item_id)
 
+
 @dataclass
 class RecipeLookup:
     recipe_lookup: List[RecipeLookupEntry]
 
     def to_json(self):
-        return JSONUtils.encode_as_json(asdict(self), skip_nones=True)
+        return jsonutils.encode_as_json(asdict(self), skip_nones=True)
