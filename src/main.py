@@ -11,8 +11,11 @@ from schema.recipe_lookup import *
 from schema.recipes import *
 from schema.server_information import *
 
+OUTPUT_PATH = 'site'
+DATA_PATH = 'data'
 
 def write_file(filepath: str, data: str):
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, 'w') as f:
         f.write(data)
     print("File Written: ", filepath)
@@ -55,7 +58,7 @@ def generate_server_information():
 
         l_regs.append(Region(reg_id, reg_name, l_dcs))
 
-    write_file('TestOutput/server_information.json', Regions(l_regs).to_json())
+    write_file('/'.join([OUTPUT_PATH, DATA_PATH, 'server_information.js']), 'var server_information = ' + Regions(l_regs).to_json())
 
 
 def generate_recipe_lookups():
@@ -125,7 +128,7 @@ def generate_recipe_lookups():
 
         cookbook_pages.append(ItemCategory(category, category_name, item_list))
 
-    write_file('TestOutput/cookbook.json', ItemCategories(cookbook_pages).to_json())
+    write_file('/'.join([OUTPUT_PATH, DATA_PATH, 'cookbook.js']), 'var cookbook = ' + ItemCategories(cookbook_pages).to_json())
 
     recipe_list = [Recipe(recipe_id     = recipe['Recipe_ID'],
                           result_id     = recipe['Item{Result}'],
@@ -138,7 +141,7 @@ def generate_recipe_lookups():
                           ) for i in range(8) if recipe[''.join(['Amount{Ingredient}[', str(i), ']'])] > 0]
                           ) for _, recipe in recipes.iterrows()]
 
-    write_file('TestOutput/recipes.json', Recipes(recipe_list).to_json())
+    write_file('/'.join([OUTPUT_PATH, DATA_PATH, 'recipes.js']), 'var recipes = ' + Recipes(recipe_list).to_json())
 
 
 if __name__ == '__main__':
