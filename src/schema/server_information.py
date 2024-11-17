@@ -3,7 +3,7 @@ from typing import List
 
 import pandas
 
-from ..utils import jsonutils
+from utils import jsonutils
 
 regions = pandas.DataFrame({
     'Region_ID': [1, 2, 3, 4, 7],

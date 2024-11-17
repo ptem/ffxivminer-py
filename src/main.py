@@ -1,4 +1,7 @@
 import os
+import time
+from collections import defaultdict
+from os import write
 
 import pandas
 from pandas import DataFrame
@@ -25,9 +28,9 @@ def generate_server_information():
                                               skiprows=[0, 2], index_col=False)
                               .rename(columns={'#': 'DataCenter_ID', 'Name': 'DataCenter_Name', 'Region': 'Region_ID'}))
 
-    datacenters.drop(datacenters.columns[3], axis=1, inplace=True)
-    datacenters.drop(datacenters[~datacenters['Region_ID'].isin(regions['Region_ID'])].index, inplace=True)
-    datacenters.reset_index(drop=True, inplace=True)
+    datacenters = ((datacenters.drop(datacenters.columns[3], axis=1)
+                    .drop(datacenters[~datacenters['Region_ID'].isin(regions['Region_ID'])].index))
+                   .reset_index(drop=True))
 
     # Worlds
     worlds: DataFrame = ((pandas.read_csv('Data/World.csv',
@@ -55,167 +58,94 @@ def generate_server_information():
     write_file('TestOutput/server_information.json', Regions(l_regs).to_json())
 
 
-if __name__ == '__main__':
-
+def generate_recipe_lookups():
     ###########################################
     # Create Recipe Lookup Table
     ###########################################
 
-    tbl_recipe_lookup = pandas.read_csv('Data/RecipeLookup.csv',
-                                        skiprows=[0, 2],
-                                        index_col=False)
-    tbl_recipe_lookup = tbl_recipe_lookup[['#', 'CRP', 'BSM', 'ARM', 'GSM', 'LTW', 'WVR', 'ALC', 'CUL']]
+    recipe_lookup: DataFrame = pandas.read_csv('Data/RecipeLookup.csv',
+                                               skiprows=[0, 2],
+                                               index_col=False).rename(columns={'#': 'Item_ID'})
 
-    print(f'Created Recipe Lookup Table')
+    # redundant to define col names.
+    recipe_lookup = recipe_lookup[['Item_ID', 'CRP', 'BSM', 'ARM', 'GSM', 'LTW', 'WVR', 'ALC', 'CUL']]
 
-    ###########################################
-    # Create Craftable Items Table, Recipe Lookup Table
-    ###########################################
+    item_categories: DataFrame = ((pandas.read_csv('Data/ItemSearchCategory.csv',
+                                                   skiprows=[0, 2], index_col=False)
+                                   .rename(columns={'#': 'ItemSearchCategory_ID',
+                                                    'Name': 'ItemSearchCategory_Name'})))
 
-    tbl_items = pandas.read_csv('Data/Item.csv',
-                                skiprows=[0, 2], index_col=False)
-    tbl_items = tbl_items[['#', 'Name', 'ItemSearchCategory']].dropna().reset_index(drop=True)
-    tbl_items.columns = ['#', 'Name', 'ItemSearchCategory_ID']
+    item_categories = item_categories[['ItemSearchCategory_ID', 'ItemSearchCategory_Name']]
 
-    tbl_items_mid = pandas.read_csv('Data/ItemSearchCategory.csv', skiprows=[0, 2], index_col=False)
-    tbl_items_mid = tbl_items_mid[['#', 'Name']].dropna().reset_index(drop=True)
-    tbl_items_mid.columns = ['ItemSearchCategory_ID', 'ItemSearchCategory_Name']
+    items: DataFrame = ((pandas.read_csv('Data/Item.csv', skiprows=[0, 2], index_col=False)
+                         .rename(columns={'#': 'Item_ID',
+                                          'Name': 'Item_Name',
+                                          'ItemSearchCategory': 'ItemSearchCategory_ID'})))
 
-    tbl_items_categories = tbl_items.merge(tbl_items_mid, on='ItemSearchCategory_ID')
-    # print(tbl_items_categories.columns)
+    items = items[['Item_ID', 'Item_Name', 'ItemSearchCategory_ID']]
+    items = items.merge(item_categories, on='ItemSearchCategory_ID').dropna().reset_index(drop=True).sort_values(
+        by=['ItemSearchCategory_ID', 'Item_ID'])
 
-    tbl_craftable_items = tbl_items_categories.merge(tbl_recipe_lookup, on='#', how='inner')
-    tbl_craftable_items = tbl_craftable_items.sort_values(by=['ItemSearchCategory_ID', '#'])
-    # print(tbl_craftable_items.columns)
+    recipe_levels: DataFrame = (pandas.read_csv('Data/RecipeLevelTable.csv', skiprows=[0, 2], index_col=False)
+                                .rename(columns={'#': 'RecipeLevelTable', 'ClassJobLevel': 'RecipeLevel'}))
 
-    print(f'Created Craftable Items Table')
+    recipe_levels = recipe_levels[['RecipeLevelTable', 'RecipeLevel']]
 
-    tbl_uncraftable = (tbl_items_categories[['#', 'Name', 'ItemSearchCategory_ID', 'ItemSearchCategory_Name']]
-                       .merge(tbl_craftable_items[['#', 'Name', 'ItemSearchCategory_ID', 'ItemSearchCategory_Name']]
-                              , indicator=True, how='outer'))
-    tbl_uncraftable = tbl_uncraftable[tbl_uncraftable['_merge'] != 'both'][
-        ['#', 'Name', 'ItemSearchCategory_ID', 'ItemSearchCategory_Name']]
-    tbl_uncraftable = tbl_uncraftable.sort_values(by=['ItemSearchCategory_ID', '#'])
+    recipes: DataFrame = (pandas.read_csv('Data/Recipe.csv', skiprows=[0, 2], index_col=False)
+                          .rename(columns={'#': 'Recipe_ID'}))
 
-    print(f'Created Uncraftable Items Table')
+    recipes = recipes.merge(recipe_levels, on='RecipeLevelTable')
 
-    ###########################################
-    # Create Gatherables Table
-    ###########################################
-    # TODO: Gatherables Table
+    recipes = recipes[recipes['Item{Result}'] > 0]
+    recipes = recipes[['Recipe_ID', 'RecipeLevel', 'Item{Result}', 'Amount{Result}',
+                       'Item{Ingredient}[0]', 'Amount{Ingredient}[0]',
+                       'Item{Ingredient}[1]', 'Amount{Ingredient}[1]',
+                       'Item{Ingredient}[2]', 'Amount{Ingredient}[2]',
+                       'Item{Ingredient}[3]', 'Amount{Ingredient}[3]',
+                       'Item{Ingredient}[4]', 'Amount{Ingredient}[4]',
+                       'Item{Ingredient}[5]', 'Amount{Ingredient}[5]',
+                       'Item{Ingredient}[6]', 'Amount{Ingredient}[6]',
+                       'Item{Ingredient}[7]', 'Amount{Ingredient}[7]']]
 
-    ###########################################
-    # Create Recipes Table
-    ###########################################
+    craftable_items = items.merge(recipe_lookup, on='Item_ID', how='inner')
+    craftable_item_category_ids = craftable_items['ItemSearchCategory_ID'].unique().tolist()
 
-    tbl_recipe_level = pandas.read_csv('Data/RecipeLevelTable.csv', skiprows=[0, 2], index_col=False)
-    tbl_recipe_level = tbl_recipe_level[['#', 'ClassJobLevel']]
-    tbl_recipe_level.columns = ['RecipeLevelTable', 'Level']
+    cookbook_pages = list()
+    for category in craftable_item_category_ids:
+        items_in_category = craftable_items[craftable_items['ItemSearchCategory_ID'] == category]
+        category_name = \
+        craftable_items[craftable_items['ItemSearchCategory_ID'] == category]['ItemSearchCategory_Name'].tolist()[0]
 
-    tbl_recipes = pandas.read_csv('Data/Recipe.csv', skiprows=[0, 2], index_col=False)
-    tbl_recipes = tbl_recipes.merge(tbl_recipe_level, on='RecipeLevelTable')
-    tbl_recipes = tbl_recipes[tbl_recipes['Item{Result}'] > 0][['#', 'Level',
-                                                                'Item{Result}', 'Amount{Result}',
-                                                                'Item{Ingredient}[0]', 'Amount{Ingredient}[0]',
-                                                                'Item{Ingredient}[1]', 'Amount{Ingredient}[1]',
-                                                                'Item{Ingredient}[2]', 'Amount{Ingredient}[2]',
-                                                                'Item{Ingredient}[3]', 'Amount{Ingredient}[3]',
-                                                                'Item{Ingredient}[4]', 'Amount{Ingredient}[4]',
-                                                                'Item{Ingredient}[5]', 'Amount{Ingredient}[5]',
-                                                                'Item{Ingredient}[6]', 'Amount{Ingredient}[6]',
-                                                                'Item{Ingredient}[7]', 'Amount{Ingredient}[7]']]
+        item_list = [Item(item['Item_ID'],
+                          item['Item_Name'],
+                          RecipesIDList(CRP=item['CRP'], BSM=item['BSM'], ARM=item['ARM'],
+                                        GSM=item['GSM'], LTW=item['LTW'], WVR=item['WVR'],
+                                        ALC=item['ALC'], CUL=item['CUL']))
+                     for _, item in items_in_category.iterrows()]
 
-    print(f'Created Recipes Table')
+        cookbook_pages.append(ItemCategory(category, category_name, item_list))
 
-    ###########################################
-    # Write Craftable Items to JSON
-    ###########################################
+    write_file('TestOutput/cookbook.json', ItemCategories(cookbook_pages).to_json())
 
-    item_categories = list()
-    for search_category_id in tbl_craftable_items['ItemSearchCategory_ID'].drop_duplicates().tolist():
-        tbl_temp_category = tbl_craftable_items[tbl_craftable_items['ItemSearchCategory_ID'] == search_category_id]
-        temp_category_name = tbl_temp_category['ItemSearchCategory_Name'].tolist()[0]
-        temp_category_items = tbl_temp_category['#'].tolist()
+    recipe_list = [Recipe(recipe_id     = recipe['Recipe_ID'],
+                          result_id     = recipe['Item{Result}'],
+                          result_amt    = recipe['Amount{Result}'],
+                          level         = recipe['RecipeLevel'],
 
-        category_items = list()
-        for temp_category_item_id in temp_category_items:
-            temp_category_item_name = \
-            tbl_craftable_items[tbl_craftable_items['#'] == temp_category_item_id]['Name'].tolist()[0]
-            category_items.append(Item(temp_category_item_id, temp_category_item_name))
+                          ingredients=[Ingredient(
+                              id=recipe[str.join('', ['Item{Ingredient}[', str(i), ']'])],
+                              amt=recipe[str.join('', ['Amount{Ingredient}[', str(i), ']'])]
+                          ) for i in range(8) if recipe[''.join(['Amount{Ingredient}[', str(i), ']'])] > 0]
+                          ) for _, recipe in recipes.iterrows()]
 
-        item_categories.append(ItemCategory(search_category_id, temp_category_name, category_items))
+    write_file('TestOutput/recipes.json', Recipes(recipe_list).to_json())
 
-    if not os.path.exists('TestOutput'):
-        os.mkdir('TestOutput')
 
-    with open('TestOutput/craftable_items.json', 'w') as file:
-        file.write(ItemCategories(item_categories).to_json())
+if __name__ == '__main__':
+    start_time = time.time()
 
-    print(f'Exported Craftable Items')
+    generate_server_information()
+    generate_recipe_lookups()
 
-    ###########################################
-    # Write Uncraftable Items to JSON
-    ###########################################
-    uncraftable_categories = list()
-    for search_category_id in tbl_uncraftable['ItemSearchCategory_ID'].drop_duplicates().tolist():
-        tbl_temp_category = tbl_uncraftable[tbl_uncraftable['ItemSearchCategory_ID'] == search_category_id]
-        temp_category_name = tbl_temp_category['ItemSearchCategory_Name'].tolist()[0]
-        temp_category_items = tbl_temp_category['#'].tolist()
-
-        category_items = list()
-        for temp_category_item_id in temp_category_items:
-            temp_category_item_name = tbl_uncraftable[tbl_uncraftable['#'] == temp_category_item_id]['Name'].tolist()[0]
-            category_items.append(Item(temp_category_item_id, temp_category_item_name))
-
-        uncraftable_categories.append(ItemCategory(search_category_id, temp_category_name, category_items))
-
-    with open('TestOutput/uncraftable_items.json', 'w') as file:
-        file.write(ItemCategories(uncraftable_categories).to_json())
-
-    print(f'Exported Uncraftable Items')
-
-    ###########################################
-    # Write Recipe Lookup to JSON
-    ###########################################
-
-    recipe_lookups_list = list()
-    for _, row in tbl_recipe_lookup.iterrows():
-        recipes_list = RecipesIDList(CRP=row['CRP'],
-                                     BSM=row['BSM'],
-                                     ARM=row['ARM'],
-                                     GSM=row['GSM'],
-                                     LTW=row['LTW'],
-                                     WVR=row['WVR'],
-                                     ALC=row['ALC'],
-                                     CUL=row['CUL'])
-        recipe_lookup_entry = RecipeLookupEntry(item_id=row['#'], recipes=recipes_list)
-        recipe_lookups_list.append(recipe_lookup_entry)
-
-    with open('TestOutput/recipe_lookup.json', 'w') as file:
-        file.write(RecipeLookup(recipe_lookups_list).to_json())
-
-    print(f'Exported Recipe Lookup')
-
-    ###########################################
-    # Write Recipes to JSON
-    ###########################################
-
-    recipes_list = list()
-    for _, row in tbl_recipes.iterrows():
-        temp_recipe_table = tbl_recipes[tbl_recipes['#'] == row['#']]
-
-        ingredients_list = list()
-        for ingredient_idx in range(8):
-            ing = str.join('', ['{Ingredient}[', str(ingredient_idx), ']'])
-            temp_amt = temp_recipe_table['Amount' + ing].values[0]
-            temp_item = temp_recipe_table['Item' + ing].values[0]
-            if temp_amt > 0 and temp_item > 0:
-                ingredients_list.append(Ingredient(temp_item, temp_amt))
-
-        recipes_list.append(
-            Recipe(row['#'], row['Item{Result}'], row['Amount{Result}'], row['Level'], ingredients_list))
-
-    with open('TestOutput/recipes.json', 'w') as file:
-        file.write(Recipes(recipes_list).to_json())
-
-    print("Exported Recipes")
+    end_time = time.time()
+    print('\nCompleted process in', round(end_time - start_time, 3), 'seconds.')

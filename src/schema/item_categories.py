@@ -1,13 +1,17 @@
 from dataclasses import dataclass, asdict
 from typing import List
 
-from ..utils import jsonutils
+from utils import jsonutils
+
+from src.schema.recipe_lookup import RecipeLookupEntry, RecipesIDList
+from src.schema.recipes import Recipes
 
 
 @dataclass
 class Item:
     item_id: int
     item_name: str
+    recipes: RecipesIDList = None
 
     def __post_init__(self):
         self.item_id = int(self.item_id)

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, asdict
 from typing import List
 
-from ..utils import jsonutils
+from utils import jsonutils
 
 
 @dataclass
